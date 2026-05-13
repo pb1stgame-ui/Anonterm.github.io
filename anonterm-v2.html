@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>anonterm</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap');
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#0c0c0c;--surface:#111;--surface2:#161616;--border:#1e1e1e;
+    --green:#00ff88;--amber:#ffb300;--red:#ff4545;--blue:#4da6ff;
+    --muted:#3a3a3a;--muted2:#555;--text:#c8c8c8;--white:#eaeaea;
+    --font:'JetBrains Mono',monospace;
+  }
+  html,body{height:100%;background:var(--bg);color:var(--text);font-family:var(--font);overflow:hidden}
+  body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;
+    background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.04) 2px,rgba(0,0,0,0.04) 4px)}
+
+  /* ── BOOT ── */
+  #boot{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;
+    align-items:center;justify-content:center;padding:2rem;z-index:50;overflow-y:auto}
+  .logo{font-size:clamp(24px,5vw,40px);font-weight:700;color:var(--green);letter-spacing:-1px;
+    text-shadow:0 0 40px rgba(0,255,136,.2)}
+  .tagline{font-size:11px;color:var(--muted2);letter-spacing:.2em;text-transform:uppercase;margin:4px 0 36px}
+  .boot-log{width:100%;max-width:520px;font-size:12px;color:var(--muted2);line-height:2.1;margin-bottom:28px}
+  .bl{opacity:0;transition:opacity .15s}.bl.on{opacity:1}
+  .ok{color:var(--green)}.warn{color:var(--amber)}.err{color:var(--red)}
+
+  .form-wrap{width:100%;max-width:520px;opacity:0;transition:opacity .3s}
+  .form-wrap.on{opacity:1}
+
+  .section-label{font-size:10px;color:var(--muted2);letter-spacing:.15em;text-transform:uppercase;
+    margin:20px 0 8px 2px}
+  .section-label:first-child{margin-top:0}
+
+  .ibox{display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:4px;
+    padding:10px 13px;background:var(--surface);transition:border-color .15s;margin-bottom:8px}
+  .ibox:focus-within{border-color:var(--green)}
+  .ibox .sym{color:var(--green);user-select:none;flex-shrink:0}
+  .ibox .lbl{color:var(--muted2);font-size:12px;user-select:none;white-space:nowrap;flex-shrink:0}
+  .ibox input{background:none;border:none;outline:none;font-family:var(--font);font-size:13px;
+    color:var(--white);flex:1;caret-color:var(--green);min-width:0}
+  .ibox input::placeholder{color:var(--muted)}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+
+  .hint{font-size:11px;color:var(--muted);margin:4px 0 0 2px}
+
+  .join-btn{width:100%;background:none;border:1px solid var(--green);border-radius:4px;
+    color:var(--green);font-family:var(--font);font-size:13px;padding:11px;cursor:pointer;
+    letter-spacing:.08em;transition:background .15s,color .15s;margin-top:16px}
+  .join-btn:hover{background:var(--green);color:#000}
+
+  /* ── TERMINAL ── */
+  #term{display:none;height:100vh;flex-direction:column}
+
+  .topbar{display:flex;align-items:center;gap:10px;padding:7px 16px;
+    background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;flex-wrap:wrap}
+  .tb-logo{color:var(--green);font-weight:700;font-size:13px}
+  .tb-div{color:var(--muted)}
+  .tb-chan{color:var(--amber);font-size:12px}
+  .tb-lock{color:var(--muted2);font-size:11px}
+  .tb-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);transition:background .3s;flex-shrink:0}
+  .dot.on{background:var(--green);box-shadow:0 0 6px var(--green)}
+  .dot.mid{background:var(--amber);animation:blink 1s infinite}
+  #stxt{font-size:11px;color:var(--muted2)}
+  .pill{font-size:11px;color:var(--muted2);border:1px solid var(--border);border-radius:3px;padding:2px 8px}
+  .pill b{color:var(--green)}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+
+  /* log */
+  #log{flex:1;overflow-y:auto;padding:12px 16px;display:flex;flex-direction:column;gap:2px}
+  #log::-webkit-scrollbar{width:3px}
+  #log::-webkit-scrollbar-thumb{background:var(--border)}
+
+  .row{display:flex;gap:10px;font-size:13px;line-height:1.6;animation:fadeUp .15s ease;align-items:flex-start}
+  @keyframes fadeUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+  .ts{color:var(--muted);font-size:11px;flex-shrink:0;padding-top:2px;user-select:none;min-width:65px}
+  .who{font-weight:700;font-size:12px;flex-shrink:0;min-width:80px;overflow:hidden;text-overflow:ellipsis}
+  .who.me{color:var(--green)}.who.them{color:var(--amber)}.who.sys{color:var(--muted2)}
+  .txt{flex:1;word-break:break-word}
+  .row.sysrow .txt{color:var(--muted2);font-style:italic}
+  .hi-join{color:var(--green)}.hi-leave{color:var(--red)}
+
+  /* image in chat */
+  .chat-img{
+    display:block;max-width:320px;max-height:240px;
+    border-radius:6px;margin-top:4px;cursor:pointer;
+    border:1px solid var(--border);
+    transition:opacity .2s;
+  }
+  .chat-img:hover{opacity:.85}
+
+  /* lightbox */
+  #lightbox{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);
+    z-index:1000;align-items:center;justify-content:center;cursor:zoom-out
+  }
+  #lightbox.show{display:flex}
+  #lightbox img{max-width:90vw;max-height:90vh;border-radius:8px;object-fit:contain}
+
+  /* input bar */
+  .bar{border-top:1px solid var(--border);background:var(--surface);padding:10px 16px;flex-shrink:0}
+
+  /* image preview */
+  #img-preview-wrap{
+    display:none;background:var(--surface2);border:1px solid var(--border);
+    border-radius:4px;padding:8px 10px;margin-bottom:8px;
+    display:none;align-items:center;gap:10px
+  }
+  #img-preview-wrap.show{display:flex}
+  #img-preview-thumb{width:48px;height:48px;object-fit:cover;border-radius:3px;border:1px solid var(--border)}
+  #img-preview-name{font-size:11px;color:var(--muted2);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #img-preview-cancel{background:none;border:none;color:var(--red);cursor:pointer;font-family:var(--font);font-size:13px;padding:2px 6px}
+  #img-preview-cancel:hover{color:#fff}
+
+  .bar-inner{display:flex;align-items:center;gap:8px;background:var(--bg);border:1px solid var(--border);
+    border-radius:4px;padding:8px 12px;transition:border-color .15s}
+  .bar-inner:focus-within{border-color:var(--green)}
+  #mylabel{color:var(--green);font-size:12px;font-weight:700;user-select:none;flex-shrink:0}
+
+  #cinput{flex:1;background:none;border:none;outline:none;font-family:var(--font);
+    font-size:13px;color:var(--white);caret-color:var(--green)}
+  #cinput::placeholder{color:var(--muted)}
+  #cinput:disabled{opacity:.35}
+  #cc{font-size:10px;color:var(--muted);flex-shrink:0}
+
+  .icon-btn{background:none;border:none;color:var(--muted2);cursor:pointer;
+    padding:2px 5px;font-size:16px;transition:color .15s;flex-shrink:0;line-height:1}
+  .icon-btn:hover{color:var(--white)}
+
+  .tips{display:flex;gap:16px;margin-top:6px;padding-left:2px;flex-wrap:wrap}
+  .tip{font-size:10px;color:var(--muted)}
+  .tip kbd{background:var(--border);border-radius:2px;padding:1px 4px;font-family:var(--font);font-size:10px;color:var(--muted2)}
+
+  /* password modal */
+  #pw-modal{
+    display:none;position:fixed;inset:0;background:rgba(0,0,0,.85);
+    z-index:200;align-items:center;justify-content:center
+  }
+  #pw-modal.show{display:flex}
+  .modal-box{
+    background:var(--surface);border:1px solid var(--border);border-radius:8px;
+    padding:28px 28px 24px;width:100%;max-width:380px
+  }
+  .modal-box h3{color:var(--white);font-size:14px;margin-bottom:6px}
+  .modal-box p{color:var(--muted2);font-size:12px;margin-bottom:20px;line-height:1.6}
+  .modal-box .ibox{margin-bottom:12px}
+  .modal-err{color:var(--red);font-size:11px;margin-bottom:10px;display:none}
+  .modal-err.show{display:block}
+  .modal-btns{display:flex;gap:8px}
+  .mbtn{flex:1;background:none;border:1px solid var(--border);border-radius:4px;
+    color:var(--muted2);font-family:var(--font);font-size:12px;padding:9px;cursor:pointer;
+    transition:border-color .15s,color .15s}
+  .mbtn:hover{border-color:var(--muted2);color:var(--white)}
+  .mbtn.primary{border-color:var(--green);color:var(--green)}
+  .mbtn.primary:hover{background:var(--green);color:#000}
+
+  /* notif */
+  #notif-banner{
+    position:fixed;top:12px;right:16px;z-index:500;
+    background:var(--surface);border:1px solid var(--green);border-radius:6px;
+    padding:10px 16px;font-size:12px;color:var(--green);
+    max-width:280px;word-break:break-word;
+    opacity:0;transform:translateY(-8px);
+    transition:opacity .2s,transform .2s;pointer-events:none
+  }
+  #notif-banner.show{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<!-- BOOT -->
+<div id="boot">
+  <div class="logo">anonterm_</div>
+  <div class="tagline">anonymous global chatroom · no signup · no logs</div>
+  <div class="boot-log">
+    <div class="bl" id="b0">[sys]&nbsp; runtime modules ................... <span class="ok">OK</span></div>
+    <div class="bl" id="b1">[net]&nbsp; public relay ntfy.sh .............. <span class="ok">READY</span></div>
+    <div class="bl" id="b2">[sec]&nbsp; encryption=none · identity=none ... <span class="warn">ANON</span></div>
+    <div class="bl" id="b3">[img]&nbsp; image support (upload + url) ....... <span class="ok">ON</span></div>
+    <div class="bl" id="b4">[usr]&nbsp; configure room and enter callsign.</div>
+  </div>
+  <div class="form-wrap" id="fwrap">
+    <div class="section-label">// callsign</div>
+    <div class="ibox">
+      <span class="sym">$</span>
+      <span class="lbl">name :&gt;&nbsp;</span>
+      <input id="uinput" type="text" placeholder="anon420" maxlength="16" autocomplete="off" spellcheck="false">
+    </div>
+
+    <div class="section-label">// room config</div>
+    <div class="row2">
+      <div>
+        <div class="ibox">
+          <span class="sym">#</span>
+          <input id="rinput" type="text" placeholder="global-void" maxlength="32" autocomplete="off" spellcheck="false">
+        </div>
+        <div class="hint">room name</div>
+      </div>
+      <div>
+        <div class="ibox">
+          <span class="sym">🔒</span>
+          <input id="pinput" type="password" placeholder="(no password)" maxlength="32" autocomplete="off">
+        </div>
+        <div class="hint">password (optional)</div>
+      </div>
+    </div>
+
+    <button class="join-btn" onclick="doJoin()">[ ENTER THE VOID ]</button>
+  </div>
+</div>
+
+<!-- PASSWORD MODAL (for joining password-protected room) -->
+<div id="pw-modal">
+  <div class="modal-box">
+    <h3>🔒 room is password protected</h3>
+    <p>this room requires a password to join. enter it below.</p>
+    <div class="ibox">
+      <span class="sym">$</span>
+      <input id="pw-entry" type="password" placeholder="enter password..." autocomplete="off">
+    </div>
+    <div class="modal-err" id="pw-err">wrong password. try again.</div>
+    <div class="modal-btns">
+      <button class="mbtn" onclick="closePwModal()">cancel</button>
+      <button class="mbtn primary" onclick="submitPw()">enter</button>
+    </div>
+  </div>
+</div>
+
+<!-- LIGHTBOX -->
+<div id="lightbox" onclick="closeLightbox()">
+  <img id="lb-img" src="" alt="">
+</div>
+
+<!-- NOTIFICATION BANNER -->
+<div id="notif-banner"></div>
+
+<!-- TERMINAL -->
+<div id="term">
+  <div class="topbar">
+    <span class="tb-logo">anonterm_</span>
+    <span class="tb-div">/</span>
+    <span class="tb-chan" id="tb-chan">#global-void</span>
+    <span class="tb-lock" id="tb-lock"></span>
+    <div class="tb-right">
+      <div class="dot mid" id="dot"></div>
+      <span id="stxt">connecting...</span>
+      <div class="pill"><b id="cnt">1</b> online</div>
+    </div>
+  </div>
+  <div id="log"></div>
+  <div class="bar">
+    <div id="img-preview-wrap">
+      <img id="img-preview-thumb" src="" alt="">
+      <span id="img-preview-name">image.png</span>
+      <button id="img-preview-cancel" onclick="cancelImg()">✕ cancel</button>
+    </div>
+    <div class="bar-inner">
+      <span id="mylabel">anon&gt;</span>
+      <input id="cinput" type="text" placeholder="type a message or paste image url..." maxlength="500" autocomplete="off" spellcheck="false" disabled>
+      <span id="cc">500</span>
+      <button class="icon-btn" onclick="document.getElementById('file-input').click()" title="Upload image">📎</button>
+      <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFileSelect(event)">
+    </div>
+    <div class="tips">
+      <span class="tip"><kbd>Enter</kbd> send</span>
+      <span class="tip"><kbd>↑</kbd> recall</span>
+      <span class="tip"><kbd>📎</kbd> upload image</span>
+      <span class="tip">paste image url → auto preview</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── GLOBALS ──────────────────────────────────────────────────────────────────
+const NTFY = 'https://ntfy.sh';
+let myName = '', roomTopic = '', roomPass = '', roomPassHash = '';
+let lastMsg = '', pendingImgData = null, pendingImgName = '';
+let onlineSet = new Set();
+let es = null;
+let notifTimeout = null;
+let notifEnabled = false;
+let pendingJoin = false; // waiting for pw check
+
+// Image URL patterns
+const IMG_URL_RE = /https?:\/\/\S+\.(?:png|jpg|jpeg|gif|webp|bmp|svg)(\?\S*)?$/i;
+const URL_RE     = /https?:\/\/\S+/i;
+
+// ─── BOOT ANIM ────────────────────────────────────────────────────────────────
+(function boot(){
+  ['b0','b1','b2','b3','b4'].forEach((id,i)=>
+    setTimeout(()=>document.getElementById(id).classList.add('on'), i*210));
+  setTimeout(()=>{
+    document.getElementById('fwrap').classList.add('on');
+    document.getElementById('uinput').focus();
+  }, 5*210+150);
+})();
+
+['uinput','rinput','pinput'].forEach(id=>{
+  document.getElementById(id).addEventListener('keydown', e=>{ if(e.key==='Enter') doJoin(); });
+});
+
+// ─── SIMPLE HASH (for room password, not crypto-grade but good enough) ────────
+async function hashStr(s){
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+// ─── JOIN FLOW ────────────────────────────────────────────────────────────────
+async function doJoin(){
+  const name = document.getElementById('uinput').value.trim().replace(/[^a-zA-Z0-9_]/g,'').slice(0,16);
+  const room = document.getElementById('rinput').value.trim().replace(/[^a-zA-Z0-9_-]/g,'').slice(0,32) || 'global-void';
+  const pass = document.getElementById('pinput').value;
+
+  if(name.length < 2){
+    shake('uinput'); return;
+  }
+
+  myName   = name;
+  roomPass = pass;
+  roomTopic = 'anonterm-v3-' + room;
+  roomPassHash = pass ? await hashStr(pass) : '';
+
+  document.getElementById('boot').style.display = 'none';
+  document.getElementById('term').style.display  = 'flex';
+  document.getElementById('mylabel').textContent  = name+'>';
+  document.getElementById('tb-chan').textContent   = '#'+room;
+  document.getElementById('tb-lock').textContent  = pass ? '🔒' : '';
+
+  onlineSet.add(myName);
+  updateCount();
+
+  sys('welcome, <span class="hi-join">'+esc(name)+'</span>. room: <span class="hi-join">#'+esc(room)+'</span>'+(pass?' 🔒':''));
+  sys('connecting to relay...');
+
+  connect();
+  requestNotifPerm();
+}
+
+// ─── PASSWORD MODAL ───────────────────────────────────────────────────────────
+let pwResolve = null;
+function askPassword(){ 
+  return new Promise(res=>{
+    pwResolve = res;
+    document.getElementById('pw-modal').classList.add('show');
+    setTimeout(()=>document.getElementById('pw-entry').focus(),100);
+  });
+}
+function closePwModal(){
+  document.getElementById('pw-modal').classList.remove('show');
+  if(pwResolve) pwResolve(null);
+}
+async function submitPw(){
+  const val = document.getElementById('pw-entry').value;
+  const hash = await hashStr(val);
+  document.getElementById('pw-entry').value = '';
+  document.getElementById('pw-modal').classList.remove('show');
+  if(pwResolve) pwResolve(hash);
+}
+document.getElementById('pw-entry').addEventListener('keydown',e=>{ if(e.key==='Enter') submitPw(); });
+
+// ─── NTFY CONNECT ─────────────────────────────────────────────────────────────
+function connect(){
+  setDot('mid','connecting...');
+  es = new EventSource(`${NTFY}/${roomTopic}/sse`);
+
+  es.onopen = ()=>{
+    setDot('on','connected');
+    sys('connected · channel: <span class="hi-join">'+esc(roomTopic)+'</span>');
+    document.getElementById('cinput').disabled = false;
+    document.getElementById('cinput').focus();
+    publish({ t:'join', name:myName, pwh:roomPassHash });
+    publish({ t:'ping', name:myName, pwh:roomPassHash });
+  };
+
+  es.onmessage = async (raw)=>{
+    let d; try{ d=JSON.parse(raw.data); }catch{ return; }
+    let p; try{ p=JSON.parse(d.message); }catch{ return; }
+    await handlePayload(p);
+  };
+
+  es.onerror = ()=>{
+    setDot('mid','reconnecting...');
+  };
+}
+
+async function handlePayload(p){
+  if(!p||!p.t) return;
+  // if room has password, verify hash matches
+  if(roomPassHash && p.pwh !== roomPassHash) return;
+
+  switch(p.t){
+    case 'msg':
+      if(p.name !== myName){
+        if(p.img){
+          addImgMsg(p.name, p.img, false, p.ts);
+        } else {
+          addMsg(p.name, p.text, false, p.ts);
+        }
+        showNotif(p.name, p.img ? '📷 sent an image' : p.text);
+      }
+      break;
+    case 'join':
+      if(p.name !== myName){
+        // check if this joiner has wrong password (different pwh)
+        if(roomPassHash && p.pwh !== roomPassHash) return;
+        sys('<span class="hi-join">+ '+esc(p.name)+'</span> joined');
+        onlineSet.add(p.name);
+        updateCount();
+        publish({t:'pong',name:myName,pwh:roomPassHash});
+      }
+      break;
+    case 'leave':
+      if(p.name !== myName){
+        sys('<span class="hi-leave">- '+esc(p.name)+'</span> left');
+        onlineSet.delete(p.name);
+        updateCount();
+      }
+      break;
+    case 'ping':
+      if(p.name !== myName){
+        if(roomPassHash && p.pwh !== roomPassHash) return;
+        onlineSet.add(p.name);
+        updateCount();
+        publish({t:'pong',name:myName,pwh:roomPassHash});
+      }
+      break;
+    case 'pong':
+      if(p.name !== myName){
+        if(roomPassHash && p.pwh !== roomPassHash) return;
+        onlineSet.add(p.name);
+        updateCount();
+      }
+      break;
+  }
+}
+
+// ─── PUBLISH ──────────────────────────────────────────────────────────────────
+function publish(payload){
+  fetch(`${NTFY}/${roomTopic}`,{
+    method:'POST',
+    headers:{'Content-Type':'text/plain'},
+    body:JSON.stringify(payload)
+  }).catch(()=>{});
+}
+
+// ─── SEND MESSAGE ─────────────────────────────────────────────────────────────
+function send(){
+  const el = document.getElementById('cinput');
+  const text = el.value.trim();
+
+  // if there's a pending image, send that
+  if(pendingImgData){
+    const imgData = pendingImgData;
+    addImgMsg(myName, imgData, true, Date.now());
+    publish({t:'msg',name:myName,img:imgData,ts:Date.now(),pwh:roomPassHash});
+    cancelImg();
+    el.value = '';
+    document.getElementById('cc').textContent = '500';
+    return;
+  }
+
+  if(!text) return;
+  lastMsg = text;
+  el.value = '';
+  document.getElementById('cc').textContent = '500';
+
+  // detect image URL
+  if(IMG_URL_RE.test(text)){
+    addImgMsg(myName, text, true, Date.now());
+    publish({t:'msg',name:myName,img:text,ts:Date.now(),pwh:roomPassHash});
+  } else {
+    addMsg(myName, text, true, Date.now());
+    publish({t:'msg',name:myName,text,ts:Date.now(),pwh:roomPassHash});
+  }
+}
+
+// ─── IMAGE HANDLING ───────────────────────────────────────────────────────────
+function handleFileSelect(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = '';
+
+  // compress / limit size to ~500KB base64
+  const reader = new FileReader();
+  reader.onload = (ev)=>{
+    const img = new Image();
+    img.onload = ()=>{
+      const MAX = 600;
+      let w=img.width, h=img.height;
+      if(w>MAX||h>MAX){ const r=Math.min(MAX/w,MAX/h); w=Math.round(w*r); h=Math.round(h*r); }
+      const canvas = document.createElement('canvas');
+      canvas.width=w; canvas.height=h;
+      canvas.getContext('2d').drawImage(img,0,0,w,h);
+      const dataUrl = canvas.toDataURL('image/jpeg',0.75);
+      setPendingImg(dataUrl, file.name);
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function setPendingImg(dataUrl, name){
+  pendingImgData = dataUrl;
+  pendingImgName = name;
+  document.getElementById('img-preview-thumb').src = dataUrl;
+  document.getElementById('img-preview-name').textContent = name;
+  document.getElementById('img-preview-wrap').classList.add('show');
+  document.getElementById('cinput').placeholder = 'press Enter to send image...';
+  document.getElementById('cinput').focus();
+}
+
+function cancelImg(){
+  pendingImgData = null;
+  pendingImgName = '';
+  document.getElementById('img-preview-wrap').classList.remove('show');
+  document.getElementById('cinput').placeholder = 'type a message or paste image url...';
+}
+
+// ─── UI: ADD MESSAGES ─────────────────────────────────────────────────────────
+function addMsg(name, text, isMe, ts){
+  const log = document.getElementById('log');
+  const row = document.createElement('div');
+  row.className = 'row';
+
+  // linkify URLs in text
+  const linked = esc(text).replace(/https?:\/\/[^\s]+/g, m=>`<a href="${m}" target="_blank" style="color:var(--blue);text-decoration:none">${m}</a>`);
+
+  row.innerHTML = `
+    <span class="ts">${fmt(ts)}</span>
+    <span class="who ${isMe?'me':'them'}">${esc(name)}</span>
+    <span class="txt">${linked}</span>`;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+function addImgMsg(name, src, isMe, ts){
+  const log = document.getElementById('log');
+  const wrap = document.createElement('div');
+  wrap.className = 'row';
+  wrap.style.flexDirection = 'column';
+  wrap.style.alignItems = 'flex-start';
+
+  const meta = document.createElement('div');
+  meta.className = 'row';
+  meta.style.width = '100%';
+  meta.style.animation = 'none';
+  meta.innerHTML = `
+    <span class="ts">${fmt(ts)}</span>
+    <span class="who ${isMe?'me':'them'}">${esc(name)}</span>
+    <span class="txt" style="color:var(--muted2);font-style:italic;font-size:12px">sent an image</span>`;
+
+  const img = document.createElement('img');
+  img.className = 'chat-img';
+  img.src = src;
+  img.alt = 'image';
+  img.style.marginLeft = '85px'; // align with text
+  img.onclick = ()=>openLightbox(src);
+  img.onerror = ()=>{ img.style.display='none'; };
+
+  wrap.appendChild(meta);
+  wrap.appendChild(img);
+  log.appendChild(wrap);
+  log.scrollTop = log.scrollHeight;
+}
+
+function sys(html){
+  const log = document.getElementById('log');
+  const row = document.createElement('div');
+  row.className = 'row sysrow';
+  row.innerHTML = `<span class="ts">${fmt(Date.now())}</span><span class="who sys">sys</span><span class="txt">${html}</span>`;
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+// ─── LIGHTBOX ─────────────────────────────────────────────────────────────────
+function openLightbox(src){
+  document.getElementById('lb-img').src = src;
+  document.getElementById('lightbox').classList.add('show');
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('show');
+  document.getElementById('lb-img').src = '';
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closeLightbox(); });
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+function requestNotifPerm(){
+  if('Notification' in window && Notification.permission === 'default'){
+    Notification.requestPermission().then(p=>{ notifEnabled = p==='granted'; });
+  } else if(Notification.permission === 'granted'){
+    notifEnabled = true;
+  }
+}
+
+function showNotif(from, text){
+  // in-app banner
+  const b = document.getElementById('notif-banner');
+  b.textContent = `${from}: ${text.slice(0,60)}${text.length>60?'...':''}`;
+  b.classList.add('show');
+  clearTimeout(notifTimeout);
+  notifTimeout = setTimeout(()=>b.classList.remove('show'), 3500);
+
+  // OS notification if tab not focused
+  if(notifEnabled && document.hidden){
+    try{
+      new Notification('anonterm · '+from, { body: text.slice(0,80), icon: '' });
+    }catch(e){}
+  }
+}
+
+// ─── HELPERS ──────────────────────────────────────────────────────────────────
+function setDot(cls, txt){
+  document.getElementById('dot').className = 'dot '+cls;
+  document.getElementById('stxt').textContent = txt;
+}
+function updateCount(){ document.getElementById('cnt').textContent = onlineSet.size; }
+function fmt(ts){
+  const d = new Date(ts);
+  return [d.getHours(),d.getMinutes(),d.getSeconds()].map(n=>String(n).padStart(2,'0')).join(':');
+}
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function shake(id){
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--red)';
+  el.style.animation = 'none';
+  setTimeout(()=>{ el.style.borderColor=''; }, 1200);
+}
+
+// ─── INPUT EVENTS ─────────────────────────────────────────────────────────────
+document.getElementById('cinput').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ send(); return; }
+  if(e.key==='ArrowUp'){ e.preventDefault(); document.getElementById('cinput').value = lastMsg; }
+});
+document.getElementById('cinput').addEventListener('input', function(){
+  document.getElementById('cc').textContent = 500-this.value.length;
+});
+
+// paste image directly from clipboard
+document.addEventListener('paste', e=>{
+  if(document.getElementById('cinput').disabled) return;
+  const items = e.clipboardData?.items;
+  if(!items) return;
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      e.preventDefault();
+      const file = item.getAsFile();
+      const reader = new FileReader();
+      reader.onload = ev=>{
+        const img = new Image();
+        img.onload = ()=>{
+          const MAX=600;
+          let w=img.width,h=img.height;
+          if(w>MAX||h>MAX){const r=Math.min(MAX/w,MAX/h);w=Math.round(w*r);h=Math.round(h*r);}
+          const canvas=document.createElement('canvas');
+          canvas.width=w;canvas.height=h;
+          canvas.getContext('2d').drawImage(img,0,0,w,h);
+          setPendingImg(canvas.toDataURL('image/jpeg',0.75),'clipboard.jpg');
+        };
+        img.src=ev.target.result;
+      };
+      reader.readAsDataURL(file);
+      break;
+    }
+  }
+});
+
+window.addEventListener('beforeunload',()=>publish({t:'leave',name:myName,pwh:roomPassHash}));
+</script>
+</body>
+</html>
